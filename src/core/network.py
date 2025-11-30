@@ -14,6 +14,9 @@ def ping(ip: str, count: int = 1) -> bool:
 
     return result.returncode == 0
 
+# Check that the virtual network is reachable by the attacking tool
+# Attack module assume victim VM, gateway VM, and DNS seever VM are reachable
+# If one is dead/misconfigured, the attack will fail.
 def check_lab_reachability():
     config = load_config()
     reachable_hosts = []
