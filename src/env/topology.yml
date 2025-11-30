@@ -1,0 +1,15 @@
+victim:
+  ip: 10.0.0.10
+  mac: "AA:AA:AA:AA:AA:AA"  # TBD
+gateway:
+  ip: 10.0.0.1
+  mac: "BB:BB:BB:BB:BB:BB"
+dns:
+  ip: 10.0.0.53
+  mac: "CC:CC:CC:CC:CC:CC"
+attacker:
+  ip: 10.0.0.50
+  mac: "DD:DD:DD:DD:DD:DD"
+domain:
+  name: "fbi.confidential"
+  https_ip: 10.0.0.20      # TBD
