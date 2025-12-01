@@ -1,14 +1,9 @@
-<<<<<<< HEAD
 from src.attacks.arp_spoofing import start_arp_spoof
 from src.attacks.dns_spoofing import start_dns_spoof
 from src.attacks.ssl_strip import start_sslstrip
 
 from .config import load_config
 from .network import check_lab_reachability, ping
-=======
-from .config import load_config
-from .network import check_lab_reachability
->>>>>>> c07821dcd0f9f7e0c6dc9cf061b1c0b9309775a6
 
 """ src/core/mitm_pipeline.py: Module for managing MITM attack pipelines.
     Provides functions to set up, monitor, and tear down MITM attack pipelines. """
