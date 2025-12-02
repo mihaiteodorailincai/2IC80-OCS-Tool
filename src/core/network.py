@@ -1,5 +1,9 @@
 import subprocess
+import os
 from .config import load_config
+from scapy.all import srp, Ether, ARP
+
+
 
 
 """ src/core/network.py: Module for network-related operations.
@@ -25,3 +29,33 @@ def check_lab_reachability():
         ip = config[role]["ip"]
         reachable_hosts[role] = ping(ip)
     return reachable_hosts
+
+def enable_ip_forwarding() -> bool:
+    """Enables IP forwarding on the system"""
+    print("[INFO] Enabling IP forwarding...")
+    try: 
+        os.system('echo 1 > .proc/sys/net/ipv4/ip_forward')
+        print("[INFO] IP forwarding enabled.")
+        return True
+    except Exception as e:
+        print(f"[ERROR] COuld not enable IP forwarding: {e}")
+        return False
+    
+def get_mac_for_ip(ip_address: str, interface: str = None) -> str | None:
+    """Uses Scapy to dynamically resolve the MAC address for a given IP."""
+    try:
+        arp_request = ARP(pdst=ip_address)
+        ether_frame = Ether(dst="ff:ff:ff:ff:ff:ff")/arp_request
+        answered, _ = srp(ether_frame, timeout=1, verbose=False, iface=interface)
+        
+        if answered:
+            return answered[0][1].hwsrc
+        else:
+            print(f"[WARNING] Could not resolve MAC for IP: {ip_address}")
+            return None
+
+    except Exception as e:
+        print(f"[ERROR] MAC resolution failed for {ip_address}. Is Scapy installed and running as root/sudo?: {e}")
+        return None
+
+    
