@@ -7,8 +7,7 @@ FORWARDER_IP = "8.8.8.8"
 
 # Local DNS records
 DNS_RECORDS = {
-    "fbi.confidential.": "10.0.0.99",
-    "secret.service.local.": "10.0.0.101",
+    "fbi.confidential.": "10.0.0.50" # Attacker VM IP
 }
 
 

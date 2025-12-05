@@ -3,6 +3,7 @@ import os
 
 from src.attacks.arp_spoofing import start_arp_spoof
 from src.attacks.dns_spoofing import DnsSpoofingAttack
+from src.attacks.HTTP_session_hijacking import HTTPSessionHijacker
 # from src.attacks.ssl_strip import SslStripAttack # Placeholder for when SSL strip is implemented
 
 from .config import load_config
@@ -77,6 +78,16 @@ def run(mode: str):
             # ssl_stripper = SslStripAttack()
             # ssl_stripper.start()
             # running_threads['ssl'] = ssl_stripper
+
+        if "session" in mode:
+            hijacker = HTTPSessionHijacker(
+                target_domain=config["domain"]["name"],
+                target_ip=config["attacker"]["ip"],
+                victim_ip=config["victim"]["ip"],
+                interface=config["attacker"]["interface"]
+            )
+            hijacker.start()
+            running_threads["session"] = hijacker
 
         # Keep the main thread alive while attacks are running
         if running_threads:
