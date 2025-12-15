@@ -71,7 +71,7 @@ class DnsSpoofingAttack(threading.Thread):
 # For direct testing of the module
 if __name__ == '__main__':
     # This test requires running manually as root and having an active ARP spoof.
-    # Example: sudo python3 -m src.attacks.dns_spoofing
+    # Command: sudo python3 -m src.attacks.dns_spoofing / src.mitm_pipeline.dns
     print("Testing DNS spoofer (requires active MITM)...")
     try:
         attack = DnsSpoofingAttack(

