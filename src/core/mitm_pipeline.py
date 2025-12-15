@@ -8,6 +8,7 @@ import os
 from src.attacks.arp_spoofing import start_arp_spoof
 from src.attacks.dns_spoofing import DnsSpoofingAttack
 from src.attacks.HTTP_session_hijacking import HTTPSessionHijacker
+from src.attacks.ssl_strip import start_sslstrip
 from .config import load_config
 from .network import enable_ip_forwarding
 
@@ -64,7 +65,11 @@ def run(mode: str):
 
         # --- SSL Stripping (not implemented yet) ---
         if "ssl" in mode:
-            print("[WARNING] SSL stripping not implemented.")
+            real_server_ip = "10.0.0.53"
+            ssl_stripper = start_sslstrip(domain=domain_name, real_ip=real_server_ip)
+            if not ssl_stripper:
+                raise RuntimeError("SSL Strip failed to start.")
+            running_threads["ssl"] = ssl_stripper
 
         # --- HTTP Session Hijacking ---
         if "session" in mode:
