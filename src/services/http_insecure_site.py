@@ -3,6 +3,7 @@ from urllib.parse import parse_qs
 import os
 
 SESSIONS = {}  # session_id -> username
+POSTS = []
 
 def generate_session_id():
     return os.urandom(16).hex()
@@ -78,7 +79,7 @@ class InsecureWebApp(BaseHTTPRequestHandler):
                 return
             
             # extract session token
-            session_id = cookie.split("sessionid=")[1]
+            session_id = cookie.split("sessionid=", 1)[1].split(";", 1)[0].strip()
             username = SESSIONS.get(session_id)
 
             # verify that session exists
@@ -169,6 +170,31 @@ class InsecureWebApp(BaseHTTPRequestHandler):
             self.send_header("Location", "/profile")
             self.end_headers()
             return
+        
+        if self.path == "/post":
+            cookie = self.headers.get("Cookie")
+            if not cookie or "sessionid=" not in cookie:
+                self.respond(403, "<h2>Forbidden</h2>")
+                return
+
+            session_id = cookie.split("sessionid=", 1)[1].split(";", 1)[0].strip()
+            username = SESSIONS.get(session_id)
+            if not username:
+                self.respond(403, "<h2>Invalid session</h2>")
+                return
+
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode()
+            params = parse_qs(body)
+
+            message = params.get("message", [""])[0]
+            POSTS.append((username, message))
+
+            self.send_response(302)
+            self.send_header("Location", "/profile")
+            self.end_headers()
+    return
+
 
         # Unknown POST route
         self.respond(404, "<h2>404 Not Found</h2>")

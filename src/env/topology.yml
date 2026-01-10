@@ -10,6 +10,7 @@ dns:
 attacker:
   ip: 10.0.0.50
   mac: "DD:DD:DD:DD:DD:DD"
+  interface: enp0s3
 domain:
   name: "fbi.confidential"
   https_ip: 10.0.0.20
