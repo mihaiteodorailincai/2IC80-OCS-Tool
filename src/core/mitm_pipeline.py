@@ -100,6 +100,10 @@ def run(mode: str):
                 interface=attacker_iface,
             )
             hijacker.start()
+            
+            if hijacker.gui:
+                hijacker.gui.mainloop()
+
             running_threads["session"] = hijacker
 
         # Keep alive

