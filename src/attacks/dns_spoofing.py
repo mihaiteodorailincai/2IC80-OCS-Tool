@@ -23,6 +23,23 @@ from scapy.all import (
 from src.core.network import get_mac_for_ip
 
 
+class Colors:
+    RESET = "\033[0m"       # Reset color to default
+    BOLD = "\033[1m"        # Bold text
+    UNDERLINE = "\033[4m"   # Underlined text
+    RED = "\033[31m"        # Red text
+    GREEN = "\033[32m"      # Green text
+    YELLOW = "\033[33m"     # Yellow text
+    BLUE = "\033[34m"       # Blue text
+    MAGENTA = "\033[35m"    # Magenta text
+    CYAN = "\033[36m"       # Cyan text
+    WHITE = "\033[37m"      # White text
+
+
+def log_with_color(msg: str, color: str) -> None:
+    """Print messages with colors."""
+    print(f"{color}{msg}{Colors.RESET}")
+
 class DnsSpoofingAttack(threading.Thread):
     def __init__(
         self,
@@ -54,9 +71,9 @@ class DnsSpoofingAttack(threading.Thread):
         self.queries_forwarded = 0
         self.responses_forwarded = 0
 
-    def _log(self, level: str, msg: str):
+    def _log(self, level: str, msg: str, color: str = Colors.RESET):
         ts = datetime.now().strftime("%H:%M:%S")
-        print(f"[DNS] [{ts}] [{level}] {msg}")
+        print(f"{color}[DNS] [{ts}] [{level}] {msg}{Colors.RESET}")
 
     def _dns_interceptor(self, pkt):
         if self._stop_event.is_set():
@@ -79,7 +96,7 @@ class DnsSpoofingAttack(threading.Thread):
         qtype = pkt[DNSQR].qtype
         self.queries_seen += 1
 
-        self._log("INFO", f"Intercepted DNS query: {qname} from {self.victim_ip}")
+        self._log("INFO", f"Intercepted DNS query: {qname} from {self.victim_ip}", Colors.GREEN)
 
         # Ignore IPv6 cleanly
         if qtype == 28:
@@ -115,7 +132,7 @@ class DnsSpoofingAttack(threading.Thread):
     def run(self):
         self.start_time = time.time()
 
-        self._log("INFO", "DNS spoofing started")
+        self._log("INFO", "DNS spoofing started", Colors.YELLOW)
         self._log("INFO", f"Target: {self.domain} → {self.fake_ip}")
         self._log("INFO", f"Victim: {self.victim_ip} (MAC {self.victim_mac})")
         self._log("INFO", f"Real DNS: {self.dns_ip} (MAC {self.dns_mac})")
