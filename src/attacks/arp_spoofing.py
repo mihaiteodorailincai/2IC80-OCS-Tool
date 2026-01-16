@@ -29,6 +29,22 @@ from scapy.all import ARP, send, sniff, IP, TCP, UDP, ICMP, conf, get_if_hwaddr
 
 from src.core.network import get_mac_for_ip
 
+class Colors:
+    RESET = "\033[0m"       # Reset color to default
+    BOLD = "\033[1m"        # Bold text
+    UNDERLINE = "\033[4m"   # Underlined text
+    RED = "\033[31m"        # Red text
+    GREEN = "\033[32m"      # Green text
+    YELLOW = "\033[33m"     # Yellow text
+    BLUE = "\033[34m"       # Blue text
+    MAGENTA = "\033[35m"    # Magenta text
+    CYAN = "\033[36m"       # Cyan text
+    WHITE = "\033[37m"      # White text
+
+
+def log_with_color(msg: str, color: str) -> None:
+    """Print messages with colors."""
+    print(f"{color}{msg}{Colors.RESET}")
 
 # Audit Helpers
 def _ts() -> str:
@@ -197,9 +213,9 @@ class ARPSpoofer(threading.Thread):
             })
 
     # Logging
-    def _log(self, msg: str) -> None:
+    def _log(self, msg: str, color: str = Colors.RESET) -> None:
         now = datetime.now().strftime("%H:%M:%S")
-        print(f"[ARP] [{now}] {msg}")
+        print(f"{color}[ARP] [{now}] {msg}{Colors.RESET}")
 
     def _audit_info(self, event: str, data: dict) -> None:
         if not self.minimal_audit:
@@ -302,7 +318,7 @@ class ARPSpoofer(threading.Thread):
                 self.stats.verification_reason = f"Observed victim traffic on {self.interface}: {src} -> {dst}"
                 self._verified_event.set()
 
-                self._log("[PASS] MITM VERIFIED: victim traffic intercepted on attacker interface.")
+                self._log("[PASS] MITM VERIFIED: victim traffic intercepted on attacker interface.", Colors.GREEN)
                 self._log(f"       Evidence: {self.stats.verification_reason}")
                 self._audit_info("MITM_VERIFIED", {
                     "verified_at": self.stats.verified_at,
@@ -347,14 +363,14 @@ class ARPSpoofer(threading.Thread):
         while not self._stop_event.is_set():
             try:
                 print("\n" + "=" * 84)
-                print("ATTACKER CONTROL PANEL — ARP SPOOFING / MITM (Evidence + Impact)")
+                log_with_color("ATTACKER CONTROL PANEL — ARP SPOOFING / MITM (Evidence + Impact)", Colors.YELLOW)
                 print("=" * 84)
                 print(f"Interface : {self.interface}")
                 print(f"Victim    : {self.target_ip}  (real MAC {self.target_mac})")
                 print(f"Gateway   : {self.gateway_ip} (real MAC {self.gateway_mac})")
                 print(f"Attacker  : (MAC {self.attacker_mac})")
                 print("-" * 84)
-                print("Impact (what attacker can do now):")
+                log_with_color("Impact (what attacker can do now):", Colors.GREEN)
                 print("  - Passively sniff victim traffic (HTTP/DNS/credentials if unencrypted).")
                 print("  - Tamper/redirect traffic if combined with DNS spoofing / SSL stripping.")
                 print("  - Capture session cookies on insecure HTTP apps (session hijacking module).")
@@ -419,7 +435,7 @@ class ARPSpoofer(threading.Thread):
     def run(self):
         if not self.prerequisite_mode:
             self._log("=" * 72)
-            self._log("ARP SPOOFING (MITM) — Evidence-first, audited, interactive")
+            self._log("ARP SPOOFING (MITM) — Evidence-first, audited, interactive", Colors.RED)
             self._log(f" Interface : {self.interface}")
             self._log(f" Victim    : {self.target_ip}  (real MAC {self.target_mac})")
             self._log(f" Gateway   : {self.gateway_ip} (real MAC {self.gateway_mac})")

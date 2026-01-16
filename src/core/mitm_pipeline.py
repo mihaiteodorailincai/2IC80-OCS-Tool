@@ -12,6 +12,22 @@ from src.attacks.ssl_strip import start_sslstrip
 from .config import load_config
 from .network import enable_ip_forwarding
 
+class Colors:
+    RESET = "\033[0m"       # Reset color to default
+    BOLD = "\033[1m"        # Bold text
+    UNDERLINE = "\033[4m"   # Underlined text
+    RED = "\033[31m"        # Red text
+    GREEN = "\033[32m"      # Green text
+    YELLOW = "\033[33m"     # Yellow text
+    BLUE = "\033[34m"       # Blue text
+    MAGENTA = "\033[35m"    # Magenta text
+    CYAN = "\033[36m"       # Cyan text
+    WHITE = "\033[37m"      # White text
+
+
+def log_with_color(msg: str, color: str) -> None:
+    """Print messages with colors."""
+    print(f"{color}{msg}{Colors.RESET}")
 
 def teardown_pipeline(running_threads: dict):
     """Stops all attack threads + disables IP forwarding."""
@@ -62,7 +78,7 @@ def run(mode: str):
         attacker_ip = config["attacker"]["ip"]
         domain_name = config["domain"]["name"]
 
-        print("[INFO] Topology:")
+        log_with_color("[INFO] Topology:", Colors.YELLOW)
         print(f"       victim   : {victim_ip}")
         print(f"       gateway  : {gateway_ip}")
         print(f"       attacker : {attacker_ip} ({attacker_iface})")
