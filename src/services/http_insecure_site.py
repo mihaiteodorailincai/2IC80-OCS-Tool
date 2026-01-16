@@ -345,10 +345,10 @@ class InsecureWebApp(BaseHTTPRequestHandler):
 
 
 def run():
-    server = HTTPServer(("0.0.0.0", 80), InsecureWebApp)
-    print("Insecure FBI Confidential Web App running on port 80...")
+    port = int(os.getenv("FBI_HTTP_PORT", "80"))
+    server = HTTPServer(("0.0.0.0", port), InsecureWebApp)
+    print(f"Insecure FBI Confidential Web App running on port {port}...")
     server.serve_forever()
-
 
 if __name__ == "__main__":
     run()

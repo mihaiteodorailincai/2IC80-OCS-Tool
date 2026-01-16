@@ -130,10 +130,10 @@ def run(mode: str):
         # SSL STRIPPING
         if mode == "ssl":
             print("[INFO] Starting SSL stripping module...")
-            real_server_ip = config["dns"]["ip"]
+            real_https_ip = config["domain"]["https_ip"]
             ssl_stripper = start_sslstrip(
                 domain=domain_name,
-                real_ip=real_server_ip,
+                real_ip=real_https_ip,
             )
             if not ssl_stripper:
                 raise RuntimeError("SSL Strip failed to start.")
