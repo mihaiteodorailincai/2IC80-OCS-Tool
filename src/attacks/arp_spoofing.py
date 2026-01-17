@@ -149,8 +149,7 @@ class ARPSpoofer(threading.Thread):
 
         # In prerequisite mode, force-disable noisy features
         if self.prerequisite_mode:
-            self.start_control_panel = False  # never open ARP control panel
-            # keep verification off by default to avoid spam; caller can enable explicitly if desired
+            self.start_control_panel = False
             self.verify_timeout_s = 0.0
 
         self.dependents = dependents or []

@@ -330,7 +330,7 @@ class InsecureWebApp(BaseHTTPRequestHandler):
         self.wfile.write(full_page.encode("utf-8"))
 
     def _forbidden_with_js_logout(self, msg: str):
-        # “victim gets logged out + message on screen” effect.
+        # "victim gets logged out + message on screen" effect.
         self.respond(403, f"""
             <div class='center-screen'>
                 <div class='page-box glass'>

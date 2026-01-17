@@ -4,7 +4,7 @@ from dnslib import DNSRecord, DNSHeader, DNSQuestion, RR, A
 # IP of public recursive DNS server
 FORWARDER_IP = "8.8.8.8"
 
-# Local DNS spoofing records (must always end with a dot)
+# Local DNS spoofing records
 DNS_RECORDS = {
     "fbi.confidential.": "10.0.0.50"  # Attacker VM IP
 }
